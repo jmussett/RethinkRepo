@@ -1,0 +1,30 @@
+{
+  "name": "rethinkrepo",
+  "version": "0.0.1",
+  "description": "Repository ORM for Rethink DB",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://jmussett@github.com/jmussett/RethinkRepo.git"
+  },
+  "keywords": [
+    "ORM",
+    "RethinkDB",
+    "Repository"
+  ],
+  "author": "James Mussett",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jmussett/RethinkRepo/issues"
+  },
+  "homepage": "https://github.com/jmussett/RethinkRepo",
+  "dependencies": {
+    "bluebird": "^2.9.33",
+    "joi": "^6.5.0",
+    "lazy.js": "^0.4.0",
+    "rethinkdbdash": "^2.0.16"
+  }
+}
