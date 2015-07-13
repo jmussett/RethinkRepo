@@ -291,13 +291,43 @@ Repository.prototype.Query = function(model) {
 };
 
 Repository.prototype.Register = function(model) {
+
+    var modelToRegister = null;
+
+    if(typeof model == "object") {
+        if (typeof model.name != "string") {
+            throw new RepositoryError("The object is invalid, the name of the model must be a string");
+        }
+        if(typeof model.schema != "object") {
+            throw new RepositoryError("The object is invalid, the schema of the model must be an object");
+        }
+
+        var NewModel = new Function("return function " + model.name + "() {}")();
+        NewModel.Schema = function() {
+            return model.schema;
+        }
+        NewModel.prototype = Object.create(Model.prototype);
+        NewModel.__proto__ = Model;
+        NewModel.prototype.constructor = NewModel;
+
+        modelToRegister = NewModel;
+    } else if (typeof model == "function") {
+        if(model.__proto__.name != "Model") {
+            throw new RepositoryError("Class functions must inherit the repository's 'Model' class");
+        } else {
+            modelToRegister = model;
+        }
+    } else {
+        throw new RepositoryError("Unrecognised type, use either an object with a name and a schema, or a Model inherited class function");
+    }
+
     // If the selected model is already registered, throw an error
-    if (modelExists(this[modelEnforcer], model)) {
-        throw new RepositoryError("Model '" + model.name + "' has already been registered, please choose a different model name");
+    if (modelExists(this[modelEnforcer], modelToRegister)) {
+        throw new RepositoryError("Model '" + modelToRegister.name + "' has already been registered, please choose a different model name");
     }
 
     // If it isn't, add it to the list of registered models
-    this[modelEnforcer].push(model);
+    this[modelEnforcer].push(modelToRegister);
 };
 
 Repository.prototype.NewModel = function(model) {
@@ -306,8 +336,12 @@ Repository.prototype.NewModel = function(model) {
         throw new RepositoryError("Model '" + model.name + "' has not been registered, please register this model using Repository.Register()");
     }
 
+    var modelToReturn = _(this[modelEnforcer]).find(function (m) {
+        return m.name === model.name
+    });
+
     // If the selected model has been registered, return a new instance of that model
-    return new model(this[contextEnforcer], modelEnforcer);
+    return new modelToReturn(this[contextEnforcer], modelEnforcer);
 };
 
 Repository.prototype.Init = function() {

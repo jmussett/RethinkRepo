@@ -26,5 +26,8 @@
     "joi": "^6.5.0",
     "lazy.js": "^0.4.0",
     "rethinkdbdash": "^2.0.16"
+  },
+  "devDependencies": {
+    "chai": "^3.0.0"
   }
 }
