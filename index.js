@@ -293,24 +293,14 @@ Repository.prototype.Query = function(model) {
 Repository.prototype.Register = function(model) {
 
     var modelToRegister = null;
+    var isObject = false;
 
     if(typeof model == "object") {
-        if (typeof model.name != "string") {
-            throw new RepositoryError("The object is invalid, the name of the model must be a string");
-        }
         if(typeof model.schema != "object") {
             throw new RepositoryError("The object is invalid, the schema of the model must be an object");
+        } else {
+            isObject = true;
         }
-
-        var NewModel = new Function("return function " + model.name + "() {}")();
-        NewModel.Schema = function() {
-            return model.schema;
-        }
-        NewModel.prototype = Object.create(Model.prototype);
-        NewModel.__proto__ = Model;
-        NewModel.prototype.constructor = NewModel;
-
-        modelToRegister = NewModel;
     } else if (typeof model == "function") {
         if(model.__proto__.name != "Model") {
             throw new RepositoryError("Class functions must inherit the repository's 'Model' class");
@@ -319,6 +309,25 @@ Repository.prototype.Register = function(model) {
         }
     } else {
         throw new RepositoryError("Unrecognised type, use either an object with a name and a schema, or a Model inherited class function");
+    }
+
+    if(typeof model.name != "string") {
+        throw new RepositoryError("The object is invalid, the name of the model must be a string");
+    }
+    if(!model.name.match(/^[a-z]+$/i)) {
+        throw new RepositoryError("The object is invalid, the name can only contain alphabetic characters");
+    }
+
+    if(isObject) {
+        var NewModel = new Function("return function " + model.name + "() {}")();
+        NewModel.Schema = function() {
+            return model.schema;
+        };
+        NewModel.prototype = Object.create(Model.prototype);
+        NewModel.__proto__ = Model;
+        NewModel.prototype.constructor = NewModel;
+
+        modelToRegister = NewModel;
     }
 
     // If the selected model is already registered, throw an error
