@@ -3,42 +3,35 @@ var repo = rdb("Test", 'localhost', 28015);
 var chai = require("chai");
 var expect = chai.expect;
 
-function registrationTest(obj, msg) {
-
-}
-
 describe("Registration", function () {
     beforeEach(function(){
         repo = rdb("Test", 'localhost', 28015);
     });
 
-    it("Should error with unrecognised type", function() {
-        var msg = "Unrecogngised type, use either an object with a name and a schema, or a Model inherited class function";
+    it("should error with unrecognised type", function() {
+        var err = "RepositoryError: Unrecognised type, use either an object with a name and a schema, or a Model inherited class function";
         var obj = "not an object";
-        repo.Register(obj);
-        repo.Init().catch(function(err) {
-            expect(err.message).to.equal(msg)
-        });
+        expect(repo.Register.bind(obj)).to.throw(err);
     });
 
-    it("Should error with invalid name", function() {
-        var err = "The object is invalid, the name of the model must be a string";
+    it("should error with invalid name", function() {
+        var err = "RepositoryError: The object is invalid, the name of the model must be a string";
         var obj = {
             schema: {}
         };
-        registrationTest(obj, err);
+        expect(repo.Register.bind(obj)).to.throw(err);
     });
 
-    it("Should error with invalid schema", function() {
-        var err = "The object is invalid, the schema of the model must be an object";
+    it("should error with invalid schema", function() {
+        var err = "RepositoryError: The object is invalid, the schema of the model must be an object";
         var obj = {
             name: "test"
         };
-        registrationTest(obj, err);
+        expect(repo.Register.bind(obj)).to.throw(err);
     });
 
-    it("Should error with non-alphabetic name", function() {
-        var err = "The object is invalid, the name can only contain alphabetic characters";
+    it("should error with non-alphabetic name", function() {
+        var err = "RepositoryError: The object is invalid, the name can only contain alphabetic characters";
         var obj1 = {
             name: "testobject1",
             schema: {}
@@ -51,19 +44,19 @@ describe("Registration", function () {
             name: "test_object",
             schema: {}
         };
-        registrationTest(obj1, err);
-        registrationTest(obj2, err);
-        registrationTest(obj3, err);
+        expect(repo.Register.bind(obj1)).to.throw(err);
+        expect(repo.Register.bind(obj2)).to.throw(err);
+        expect(repo.Register.bind(obj3)).to.throw(err);
     });
 
-    it("Should error with object", function() {
+    it("should error with object", function() {
         repo.Register({
             name: "TestObject",
             schema: {}
         })
     });
 
-    it("Should error with duplicate models", function() {
+    it("should error with duplicate models", function() {
         var err = "Model 'test' has already been registered, please choose a different model name";
         var obj = {
             name: "test",
@@ -71,7 +64,6 @@ describe("Registration", function () {
         };
 
         repo.Register(obj);
-        registrationTest(obj, err);
     });
 });
 
