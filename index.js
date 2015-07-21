@@ -10,7 +10,7 @@ var baseEnforcer = Symbol();
 function modelExists(registeredModels, currentModel) {
     // Check if defined model has already been registered with the repo
     return !_(registeredModels).every(function(registeredModel) {
-        return currentModel.name != registeredModel.name
+        return currentModel.Name != registeredModel.Name
     });
 }
 
@@ -65,8 +65,16 @@ SchemaError.prototype.constructor       = SchemaError;
 RepositoryError.prototype.constructor   = RepositoryError;
 QueryError.prototype.constructor        = QueryError;
 
-function Model() {
+function Model(childModel, enforcer) {
     var model = {};
+
+    if (childModel != undefined) {
+        if (enforcer != modelEnforcer) {
+            return Promise.reject(new RepositoryError("Models cannot be instanciated with a child model externally, please use Model()"));
+        }
+        model = childModel;
+    }
+
     var r = null;
 
     model.Init = function(context, enforcer) {
@@ -76,22 +84,23 @@ function Model() {
             return Promise.reject(new RepositoryError("Models cannot be initialised externally, please register your models using Repository.Register()"));
         }
 
+        if (typeof model.Schema != "function") {
+            return Promise.reject(new SchemaError("Schema must be a function"));
+        }
+
         r = context;
 
         return r.tableList().run().then(function(result) {
-            // If schema isn't defined, throw an error
-            if (model.Schema === undefined) {
-                return Promise.reject(new SchemaError("No schema defined for " + model.name));
-            }
-
             var schema = model.Schema();
+            var schemaArray = [];
             var hasPrimary = false;
             var options = {};
+            var p = undefined;
 
             _(schema).keys().each(function(prop) {
                 // If schema contains an object that is not a valid Joi object, throw an error
                 if (!schema[prop].isJoi) {
-                    return Promise.reject(new SchemaError("'" + prop + "' has no validation"));
+                    p = Promise.reject(new SchemaError("'" + prop + "' has no validation"));
                 }
 
                 _(schema[prop]._meta).each(function(meta) {
@@ -99,7 +108,7 @@ function Model() {
                     if (meta.isPrimary) {
                         // If more than one primary key is defined in the schema, throw an error
                         if (hasPrimary) {
-                            return Promise.reject(new SchemaError("Primary key already exists"));
+                            p = Promise.reject(new SchemaError("Primary key already exists"));
                         }
 
                         // Add primary key to options that are to be used when creating new table
@@ -107,7 +116,17 @@ function Model() {
                         hasPrimary = true;
                     }
                 });
+
+                schemaArray.push(prop);
             });
+
+            if (p != undefined) {
+                return p;
+            }
+
+            if (_(schemaArray).uniq().toArray().length != schemaArray.length) {
+                return Promise.reject(new SchemaError("Schema cannot contain more than one property with the same name"));
+            }
 
             // If primary key isn't defined, throw an error
             if (!hasPrimary) {
@@ -115,9 +134,9 @@ function Model() {
             }
 
             // If table for current model is not defined, create a new table
-            if (result.indexOf(model.name) === -1) {
-                return r.tableCreate(model.name, options).run().then(function() {
-                    console.log("Table '" + model.name + "' created successfully.")
+            if (result.indexOf(model.Name) === -1) {
+                return r.tableCreate(model.Name, options).run().then(function() {
+                    console.log("Table '" + model.Name + "' created successfully.")
                 });
             }
 
@@ -185,17 +204,19 @@ function Model() {
                 }
             });
 
-            return r.table(model.name).get(primaryKey).run().then(function (result) {
+            return r.table(model.Name).get(primaryKey).run().then(function (result) {
                 if (result === null) {
                     // If the object does not exist, insert the the item
-                    return r.table(model.name).insert(objectToSave).run()
+                    return r.table(model.Name).insert(objectToSave).run()
                 } else {
                     // If the object does exist, update the existing item
-                    return r.table(model.name).get(primaryKey).update(objectToSave).run();
+                    return r.table(model.Name).get(primaryKey).update(objectToSave).run();
                 }
             });
         }
     }
+
+    return model;
 }
 
 function Query(queryContext, model) {
@@ -236,6 +257,8 @@ function Repository(dbName, host, port) {
 
     var models = [];
 
+    var isInitialised = false;
+
     // Context used to query the database (private object via symbol enforcer)
     var r = RethinkDb({
         servers: [{ host: host, port: port }],
@@ -253,8 +276,12 @@ function Repository(dbName, host, port) {
             var modelToRegister = null;
             var isObject = false;
 
+            if(isInitialised) {
+                throw new RepositoryError("Models can only be registered before the Repository has been initialised");
+            }
+
             if(typeof model == "object") {
-                if(typeof model.schema != "object") {
+                if(typeof model.Schema != "object") {
                     throw new RepositoryError("The object is invalid, the schema of the model must be an object");
                 }
                 isObject = true;
@@ -269,35 +296,34 @@ function Repository(dbName, host, port) {
                 throw new RepositoryError("Unrecognised type, use either an object with a name and a schema, or a Model inherited class function");
             }
 
-            if(typeof model.name != "string") {
+            if(typeof model.Name != "string") {
                 throw new RepositoryError("The object is invalid, the name of the model must be a string");
             }
 
-            if(!model.name.match(/^[a-z]+$/i)) {
+            if(!model.Name.match(/^[a-z]+$/i)) {
                 throw new RepositoryError("The object is invalid, the name can only contain alphabetic characters");
             }
 
             if(isObject) {
-                var NewModel = new Function("return function " + model.name + "() {}")();
-                NewModel.Schema = function() {
-                    return model.schema;
-                };
-                NewModel.prototype = Object.create(Model.prototype);
-                NewModel.__proto__ = Model;
-                NewModel.prototype.constructor = NewModel;
+                model = Model(model, modelEnforcer);
 
-                modelToRegister = NewModel;
+                var schema = model.Schema;
+                model.Schema = function () {
+                    return schema;
+                }
+
+                modelToRegister = model;
             }
 
             // If the selected model is already registered, throw an error
             if (modelExists(models, modelToRegister)) {
-                throw new RepositoryError("Model '" + modelToRegister.name + "' has already been registered, please choose a different model name");
+                throw new RepositoryError("Model '" + modelToRegister.Name + "' has already been registered, please choose a different model name");
             }
 
             // If it isn't, add it to the list of registered models
             models.push(modelToRegister);
 
-            console.log("Model '" + model.name + "' registered successfully");
+            console.log("Model '" + model.Name + "' registered successfully");
         },
         Init: function() {
             return r.dbList().run()
@@ -318,16 +344,19 @@ function Repository(dbName, host, port) {
                     return Promise.map(models, function(model) {
                         return model.Init(r, modelEnforcer);
                     });
-                })
+                }).then(function() {
+                    isInitialised = true;
+                    return Promise.resolve();
+                });
         },
         NewModel: function(model) {
             // If the selected model has not been registered, throw an error
             if (!modelExists(models, model)) {
-                throw new RepositoryError("Model '" + model.name + "' has not been registered, please register this model using Repository.Register()");
+                throw new RepositoryError("Model '" + model.Name + "' has not been registered, please register this model using Repository.Register()");
             }
 
             var modelToReturn = _(models).find(function (m) {
-                return m.name === model.name
+                return m.Name === model.Name
             });
 
             // If the selected model has been registered, return a new instance of that model
@@ -336,15 +365,20 @@ function Repository(dbName, host, port) {
         Query: function(model) {
             // If the selected model has not been registered, throw an error
             if (!modelExists(models, model)) {
-                throw new RepositoryError("Model '" + model.name + "' has not been registered, please register this model using Repository.Register()");
+                throw new RepositoryError("Model '" + model.Name + "' has not been registered, please register this model using Repository.Register()");
             }
 
             // If the selected model has been registered, return a new query object
-            var query = new Query(r.table(model.name), model);
+            var query = new Query(r.table(model.Name), model);
             query[baseEnforcer] = true;
             return query;
         },
         Destroy: function () {
+
+            if (!isInitialised) {
+                throw new RepositoryError("The Repository can only be destroyed after the Repository has been initialised");
+            }
+
             return r.dbList().run().then(function(result) {
                     // Check if defined database exists
                     if(result.indexOf(config.dbName) != -1) {
@@ -354,6 +388,7 @@ function Repository(dbName, host, port) {
                         });
                     }
 
+                    // Never expected to hit, implemented to prevent it from throwing an error in the case where the database has been deleted
                     return Promise.resolve();
             });
         }
