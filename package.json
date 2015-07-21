@@ -33,5 +33,11 @@
     "chai-as-promised": "^5.1.0",
     "istanbul": "^0.3.17",
     "mocha": "^2.2.5"
+  },
+  "eslintConfig": {
+      "env": {
+          "mocha": true,
+          "node": true
+      }
   }
 }

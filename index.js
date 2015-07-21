@@ -1,11 +1,10 @@
 "use strict";
 
 var _ = require("lazy.js");
-var Promise = require("bluebird");
-var Joi = require("joi");
-var RethinkDb = require("rethinkdbdash");
+var bluebird = require("bluebird");
+var joi = require("joi");
+var rethinkDb = require("rethinkdbdash");
 
-var contextEnforcer = Symbol();
 var modelEnforcer = Symbol();
 var baseEnforcer = Symbol();
 
@@ -16,19 +15,19 @@ function modelExists(registeredModels, currentModel) {
     });
 }
 
-function Validation() {
+function validation() {
 
-    var validation = Joi;
+    var intenals = joi;
 
-    validation.primaryString = function() {
-        return Joi.string().required().meta({ isPrimary: true });
+    intenals.primaryString = function() {
+        return joi.string().required().meta({ isPrimary: true });
     };
 
-    validation.primaryNumber = function() {
-        return Joi.number().required().meta({ isPrimary: true });
+    intenals.primaryNumber = function() {
+        return joi.number().required().meta({ isPrimary: true });
     };
 
-    return validation;
+    return intenals;
 }
 
 function ExtendableError(message) {
@@ -67,33 +66,33 @@ SchemaError.prototype.constructor = SchemaError;
 RepositoryError.prototype.constructor = RepositoryError;
 QueryError.prototype.constructor = QueryError;
 
-function Model(childModel, enforcer) {
-    var model = {};
+function model(childModel, enforcer) {
+    var internals = {};
 
     if (childModel !== undefined) {
         if (enforcer !== modelEnforcer) {
-            return Promise.reject(new RepositoryError("Models cannot be instanciated with a child model externally, please use Model()"));
+            return bluebird.reject(new RepositoryError("Models cannot be instanciated with a child model externally, please use Model()"));
         }
-        model = childModel;
+        internals = childModel;
     }
 
     var r = null;
 
-    model.Init = function(context, mEnforcer) {
+    internals.init = function(context, mEnforcer) {
 
         // Make Initialisation of model to be managed internally through the Repository.Init Method
         if (mEnforcer !== modelEnforcer) {
-            return Promise.reject(new RepositoryError("Models cannot be initialised externally, please register your models using Repository.Register()"));
+            return bluebird.reject(new RepositoryError("Models cannot be initialised externally, please register your models using Repository.Register()"));
         }
 
-        if (typeof model.Schema !== "function") {
-            return Promise.reject(new SchemaError("Schema must be a function"));
+        if (typeof internals.Schema !== "function") {
+            return bluebird.reject(new SchemaError("Schema must be a function"));
         }
 
         r = context;
 
         return r.tableList().run().then(function(result) {
-            var schema = model.Schema();
+            var schema = internals.schema();
             var schemaArray = [];
             var hasPrimary = false;
             var options = {};
@@ -102,7 +101,7 @@ function Model(childModel, enforcer) {
             _(schema).keys().each(function(prop) {
                 // If schema contains an object that is not a valid Joi object, throw an error
                 if (!schema[prop].isJoi) {
-                    p = Promise.reject(new SchemaError("'" + prop + "' has no validation"));
+                    p = bluebird.reject(new SchemaError("'" + prop + "' has no validation"));
                 }
 
                 _(schema[prop]._meta).each(function(meta) {
@@ -110,7 +109,7 @@ function Model(childModel, enforcer) {
                     if (meta.isPrimary) {
                         // If more than one primary key is defined in the schema, throw an error
                         if (hasPrimary) {
-                            p = Promise.reject(new SchemaError("Primary key already exists"));
+                            p = bluebird.reject(new SchemaError("Primary key already exists"));
                         }
 
                         // Add primary key to options that are to be used when creating new table
@@ -127,44 +126,44 @@ function Model(childModel, enforcer) {
             }
 
             if (_(schemaArray).uniq().toArray().length !== schemaArray.length) {
-                return Promise.reject(new SchemaError("Schema cannot contain more than one property with the same name"));
+                return bluebird.reject(new SchemaError("Schema cannot contain more than one property with the same name"));
             }
 
             // If primary key isn't defined, throw an error
             if (!hasPrimary) {
-                return Promise.reject(new SchemaError("Primary key is not defined"));
+                return bluebird.reject(new SchemaError("Primary key is not defined"));
             }
 
             // If table for current model is not defined, create a new table
-            if (result.indexOf(model.Name) === -1) {
-                return r.tableCreate(model.Name, options).run().then(function() {
-                    console.log("Table '" + model.Name + "' created successfully.");
+            if (result.indexOf(internals.Name) === -1) {
+                return r.tableCreate(internals.Name, options).run().then(function() {
+                    console.log("Table '" + internals.Name + "' created successfully.");
                 });
             }
 
-            return Promise.resolve();
+            return bluebird.resolve();
         });
     };
 
-    model.Save = function() {
+    internals.save = function() {
         // If schema isn't defined, throw an error
-        if (model.Schema === undefined) {
-            return Promise.reject(new SchemaError("No schema defined for " + tableName));
+        if (internals.Schema === undefined) {
+            return bluebird.reject(new SchemaError("No schema defined for " + tableName));
         }
         else {
             var primaryKey;
             var hasPrimary = false;
             var objectToSave = {};
             var schemaToValidate = {};
-            var schema = model.Schema();
+            var schema = internals.schema();
 
             _(schema).keys().each(function (prop) {
                 var validatiion = schema[prop];
-                var value = model[prop];
+                var value = internals[prop];
 
                 // If schema contains an object that is not a valid Joi object, throw an error
                 if (!validatiion.isJoi) {
-                    return Promise.reject(new SchemaError("'" + prop + "' has no validation"));
+                    return bluebird.reject(new SchemaError("'" + prop + "' has no validation"));
                 }
 
                 schemaToValidate[prop] = validatiion;
@@ -175,12 +174,12 @@ function Model(childModel, enforcer) {
                     if (meta.isPrimary) {
                         // If the current property is undefined, throw an error
                         if (value === undefined) {
-                            return Promise.reject(new ValidationError("Property '" + prop + "' is required"));
+                            return bluebird.reject(new ValidationError("Property '" + prop + "' is required"));
                         }
 
                         // If more than one primary key is defined in the schema, throw an error
                         if (hasPrimary) {
-                            return Promise.reject(new SchemaError("Primary key already exists"));
+                            return bluebird.reject(new SchemaError("Primary key already exists"));
                         }
 
                         // Set the primary key to be the current property
@@ -193,51 +192,51 @@ function Model(childModel, enforcer) {
 
             // If primary key isn't defined, throw an error
             if (!hasPrimary) {
-                return Promise.reject(new SchemaError("Primary key is not defined"));
+                return bluebird.reject(new SchemaError("Primary key is not defined"));
             }
 
-            var schemaObject = Joi.object().keys(schemaToValidate);
+            var schemaObject = joi.object().keys(schemaToValidate);
 
             // Validate the object
-            Joi.validate(objectToSave, schemaObject, {abortEarly: false}, function (err) {
+            joi.validate(objectToSave, schemaObject, {abortEarly: false}, function (err) {
                 // If a model property fails to validate, throw an error
                 if (err) {
-                    return Promise.reject(new ValidationError(err));
+                    return bluebird.reject(new ValidationError(err));
                 }
             });
 
-            return r.table(model.Name).get(primaryKey).run().then(function (result) {
+            return r.table(internals.Name).get(primaryKey).run().then(function (result) {
                 if (result === null) {
                     // If the object does not exist, insert the the item
-                    return r.table(model.Name).insert(objectToSave).run();
+                    return r.table(internals.Name).insert(objectToSave).run();
                 } else {
                     // If the object does exist, update the existing item
-                    return r.table(model.Name).get(primaryKey).update(objectToSave).run();
+                    return r.table(internals.Name).get(primaryKey).update(objectToSave).run();
                 }
             });
         }
     };
 
-    return model;
+    return internals;
 }
 
-function Query(queryContext, model) {
+var query = function (queryContext, existingModel) {
     var context = queryContext;
-    var currentModel = model;
+    var currentModel = existingModel;
 
     return {
-        Get: function(identifier) {
+        get: function(identifier) {
             // The get function should only be called after the query was first initialised using Query(Model)
             if (!this[baseEnforcer]) {
                 throw new QueryError("You can only use Get() when used at the base of the query");
             }
 
-            var schema = currentModel.Schema();
+            //var schema = currentModel.schema();
 
             // Todo: validate identifier
-            return Query(context.get(identifier), currentModel);
+            return query(context.get(identifier), currentModel);
         },
-        Run: function() {
+        run: function() {
             // The run function should only be called after a sub-query function was first called (like Get())
             if (this[baseEnforcer]) {
                 throw new QueryError("You cannot use Run() when used at the base of the query");
@@ -247,9 +246,9 @@ function Query(queryContext, model) {
             return context.run();
         }
     };
-}
+};
 
-function Repository(dbName, host, port) {
+var repository = function (dbName, host, port) {
 
     var config = {
         dbName: dbName,
@@ -262,19 +261,19 @@ function Repository(dbName, host, port) {
     var isInitialised = false;
 
     // Context used to query the database (private object via symbol enforcer)
-    var r = RethinkDb({
+    var r = rethinkDb({
         servers: [{ host: host, port: port }],
         db: dbName
     });
 
     return {
-        Model: Model,
-        Validation: Validation(),
+        Model: model,
+        Validation: validation(),
         ValidationError: ValidationError,
         RepositoryError: RepositoryError,
         SchemaError: SchemaError,
         QueryError: QueryError,
-        Register: function(model) {
+        register: function(newModel) {
             var modelToRegister = null;
             var isObject = false;
 
@@ -282,39 +281,37 @@ function Repository(dbName, host, port) {
                 throw new RepositoryError("Models can only be registered before the Repository has been initialised");
             }
 
-            if(typeof model === "object") {
-                if(typeof model.Schema !== "object") {
+            if(typeof newModel === "object") {
+                if(typeof newModel.Schema !== "object") {
                     throw new RepositoryError("The object is invalid, the schema of the model must be an object");
                 }
                 isObject = true;
             }
-            else if (typeof model === "function") {
-                if(model.__proto__.name !== "Model") {
+            else if (typeof newModel === "function") {
+                if(newModel.__proto__.name !== "Model") {
                     throw new RepositoryError("Class functions must inherit the repository's 'Model' class");
                 }
-                modelToRegister = model;
+                modelToRegister = newModel;
             }
             else {
                 throw new RepositoryError("Unrecognised type, use either an object with a name and a schema, or a Model inherited class function");
             }
 
-            if(typeof model.Name !== "string") {
+            if(typeof newModel.Name !== "string") {
                 throw new RepositoryError("The object is invalid, the name of the model must be a string");
             }
 
-            if(!model.Name.match(/^[a-z]+$/i)) {
+            if(!newModel.Name.match(/^[a-z]+$/i)) {
                 throw new RepositoryError("The object is invalid, the name can only contain alphabetic characters");
             }
 
             if(isObject) {
-                model = Model(model, modelEnforcer);
+                modelToRegister = model(newModel, modelEnforcer);
 
-                var schema = model.Schema;
-                model.Schema = function () {
+                var schema = modelToRegister.Schema;
+                modelToRegister.schema = function () {
                     return schema;
                 };
-
-                modelToRegister = model;
             }
 
             // If the selected model is already registered, throw an error
@@ -327,7 +324,7 @@ function Repository(dbName, host, port) {
 
             console.log("Model '" + model.Name + "' registered successfully");
         },
-        Init: function() {
+        init: function() {
             return r.dbList().run()
                 .then(function(result) {
                     // Check if defined database exists
@@ -337,45 +334,45 @@ function Repository(dbName, host, port) {
                             console.log("Db '" + config.dbName + "' created successfully.");
                         });
                     }
-                    return Promise.resolve();
+                    return bluebird.resolve();
                 })
                 .then(function() {
                     console.log("Connected to RethinkDb at " + config.host + " on port " + config.port + " with db '" + config.dbName + "'");
 
                     // Initialise each model registered to the repo
-                    return Promise.map(models, function(model) {
-                        return model.Init(r, modelEnforcer);
+                    return bluebird.map(models, function(registeredModel) {
+                        return registeredModel.init(r, modelEnforcer);
                     });
                 }).then(function() {
                     isInitialised = true;
-                    return Promise.resolve();
+                    return bluebird.resolve();
                 });
         },
-        NewModel: function(model) {
+        newModel: function(existingModel) {
             // If the selected model has not been registered, throw an error
-            if (!modelExists(models, model)) {
-                throw new RepositoryError("Model '" + model.Name + "' has not been registered, please register this model using Repository.Register()");
+            if (!modelExists(models, existingModel)) {
+                throw new RepositoryError("Model '" + existingModel.Name + "' has not been registered, please register this model using Repository.Register()");
             }
 
-            var modelToReturn = _(models).find(function (m) {
-                return m.Name === model.Name;
+            var ModelToReturn = _(models).find(function (m) {
+                return m.Name === existingModel.Name;
             });
 
             // If the selected model has been registered, return a new instance of that model
-            return new modelToReturn(r, modelEnforcer);
+            return new ModelToReturn(r, modelEnforcer);
         },
-        Query: function(model) {
-            // If the selected model has not been registered, throw an error
-            if (!modelExists(models, model)) {
-                throw new RepositoryError("Model '" + model.Name + "' has not been registered, please register this model using Repository.Register()");
-            }
+        // query: function(existingModel) {
+        //     // If the selected model has not been registered, throw an error
+        //     if (!modelExists(models, existingModel)) {
+        //         throw new RepositoryError("Model '" + existingModel.Name + "' has not been registered, please register this model using Repository.Register()");
+        //     }
 
-            // If the selected model has been registered, return a new query object
-            var query = new Query(r.table(model.Name), model);
-            query[baseEnforcer] = true;
-            return query;
-        },
-        Destroy: function () {
+        //     // If the selected model has been registered, return a new query object
+        //     var newQuery = new Query(r.table(existingModel.Name), existingModel);
+        //     newQuery[baseEnforcer] = true;
+        //     return newQuery;
+        // },
+        destroy: function () {
 
             if (!isInitialised) {
                 throw new RepositoryError("The Repository can only be destroyed after the Repository has been initialised");
@@ -391,12 +388,12 @@ function Repository(dbName, host, port) {
                     }
 
                     // Never expected to hit, implemented to prevent it from throwing an error in the case where the database has been deleted
-                    return Promise.resolve();
+                    return bluebird.resolve();
             });
         }
     };
-}
+};
 
 module.exports = function(dbName, host, port) {
-    return Repository(dbName, host, port);
+    return repository(dbName, host, port);
 };
