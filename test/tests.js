@@ -9,7 +9,7 @@ var joi = repo.validation;
 
 chai.use(chaiAsPromised);
 
-describe("Registration", function () {
+describe("Registration", function() {
     beforeEach(function(){
         repo = rdb("Test", "localhost", 28015);
     });
@@ -17,129 +17,152 @@ describe("Registration", function () {
     it("should error with unrecognised type", function() {
         var err = "RepositoryError: Unrecognised type, use either an object with a name and a schema, or a Model inherited class function";
         var obj = "not an object";
-        expect(function() { repo.register(obj); }).to.throw(err);
+        expect(function() { repo.register("", obj); }).to.throw(err);
     });
 
     it("should error with invalid name", function() {
-        var err = "RepositoryError: The object is invalid, the name of the model must be a string";
+        var err = "RepositoryError: The name is invalid, the name of the model must be a string";
         var obj = {
             schema: {}
         };
-        expect(function() { repo.register(obj); }).to.throw(err);
+        expect(function() { repo.register({}, obj); }).to.throw(err);
     });
 
     it("should error with invalid schema", function() {
         var err = "RepositoryError: The object is invalid, the schema of the model must be an object";
-        var obj = {
-            Name: "test"
-        };
-        expect(function() { repo.register(obj); }).to.throw(err);
+        var obj = {};
+        expect(function() { repo.register("test", obj); }).to.throw(err);
     });
 
     it("should error with non-alphabetic name", function() {
-        var err = "RepositoryError: The object is invalid, the name can only contain alphabetic characters";
-        var obj1 = {
-            Name: "testobject1",
-            Schema: {}
+        var err = "RepositoryError: The name is invalid, the name can only contain alphabetic characters";
+        var obj = {
+            schema: {}
         };
-        var obj2 = {
-            Name: "test object",
-            Schema: {}
-        };
-        var obj3 = {
-            Name: "test_object",
-            Schema: {}
-        };
-        expect(function() { repo.register(obj1); }).to.throw(err);
-        expect(function() { repo.register(obj2); }).to.throw(err);
-        expect(function() { repo.register(obj3); }).to.throw(err);
+
+        expect(function() { repo.register("testobject1", obj); }).to.throw(err);
+        expect(function() { repo.register("test object", obj); }).to.throw(err);
+        expect(function() { repo.register("test_object", obj); }).to.throw(err);
+        expect(function() { repo.register("", obj); }).to.throw(err);
     });
 
     it("should error with duplicate models", function() {
         var err = "Model 'test' has already been registered, please choose a different model name";
-        var obj1 = {
-            Name: "test",
-            Schema: {}
+        var obj = {
+            schema: {}
         };
 
-        var obj2 = {
-            Name: "test",
-            Schema: {}
-        };
-
-        repo.register(obj1);
-        expect(function() { repo.register(obj2); }).to.throw(err);
+        repo.register("test", obj);
+        expect(function() { repo.register("test", obj); }).to.throw(err);
     });
 
     it("should error after repository is initialised", function() {
         var err = "Models can only be registered before the Repository has been initialised";
         var obj = {
-            Name: "test",
-            Schema: {}
+            schema: {}
         };
 
-        var p = repo.init().then(function () {
-            repo.register(obj);
+        var p = repo.init().then(function() {
+            repo.register("test", obj);
         });
 
         return expect(p).to.eventually.be.rejectedWith(err);
     });
 });
 
-describe("Initialisation", function () {
+describe("Model Creation", function() {
+    beforeEach(function() {
+        repo = rdb("Test", "localhost", 28015);
+    });
+
+    it("should create model", function() {
+        var obj = {
+            schema: {}
+        };
+
+        repo.register("test", obj);
+        var model = repo.newModel("test");
+        expect(typeof model.schema).to.equal("object");
+        expect(typeof model.init).to.equal("function");
+        expect(typeof model.save).to.equal("function");
+    });
+
+    it("should error when model does not exist", function() {
+        var err = "Model 'test' has not been registered, please register this model using Repository.register()";
+
+        expect(function() { repo.newModel("test"); }).to.throw(err);
+    });
+
+    it("should error when model name is not a string", function() {
+        var err = "Model name must be a string";
+
+        expect(function() { repo.newModel(5); }).to.throw(err);
+        expect(function() { repo.newModel({}); }).to.throw(err);
+    });
+});
+
+describe("Initialisation", function() {
     beforeEach(function(){
         repo = rdb("Test", "localhost", 28015);
     });
 
     it("should initialise model", function() {
         var obj = {
-            Name: "test",
-            Schema: {
+            schema: {
                 key: joi.primaryString()
             }
         };
 
-        repo.register(obj);
+        repo.register("test", obj);
         return expect(repo.init()).to.eventually.be.fulfilled;
     });
 
     it("should error when primary key is missing", function() {
         var err = "Primary key is not defined";
         var obj = {
-            Name: "test",
-            Schema: {}
+            schema: {}
         };
 
-        repo.register(obj);
+        repo.register("test", obj);
         return expect(repo.init()).to.eventually.be.rejectedWith(err);
     });
 
     it("should error when there is more than one primary key", function() {
         var err = "Primary key already exists";
         var obj = {
-            Name: "test",
-            Schema: {
+            schema: {
                 key1: joi.primaryString(),
                 key2: joi.primaryNumber()
             }
         };
 
-        repo.register(obj);
+        repo.register("test", obj);
         return expect(repo.init()).to.eventually.be.rejectedWith(err);
     });
 
     it("should error when schema validation is not a joi object", function() {
         var err = "'key2' has no validation";
         var obj = {
-            Name: "test",
-            Schema: {
+            schema: {
                 key1: joi.primaryString(),
                 key2: "not a joi object"
             }
         };
 
-        repo.register(obj);
+        repo.register("test", obj);
         return expect(repo.init()).to.eventually.be.rejectedWith(err);
+    });
+
+    it("should error when model is initialised externally", function() {
+        var err = "Models cannot be initialised externally, please initialise your models by using repo.init()";
+
+        var obj = {
+            schema: {}
+        };
+
+        repo.register("test", obj);
+        var model = repo.newModel("test");
+        expect(model.init()).to.eventually.be.rejectedWith(err);
     });
 
     // it("should error when there is more than one property with the same name", function() {
@@ -157,15 +180,14 @@ describe("Initialisation", function () {
     // });
 });
 
-describe("Destruction", function () {
+describe("Destruction", function() {
+    beforeEach(function(){
+        repo = rdb("Test", "localhost", 28015);
+    });
+
     it("should error before repository is initialised", function() {
         var err = "The Repository can only be destroyed after the Repository has been initialised";
-
-        var p = repo.init().then(function() {
-            return repo.destroy();
-        });
-
-        return expect(p).to.eventually.be.rejectedWith(err);
+        return expect(repo.destroy()).to.eventually.be.rejectedWith(err);
     });
 
     it("should delete database", function() {
