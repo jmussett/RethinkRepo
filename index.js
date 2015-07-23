@@ -7,7 +7,6 @@ var bluebird = require("bluebird");
 var joi = require("joi");
 var rethinkDb = require("rethinkdbdash");
 
-var modelEnforcer = global.Symbol();
 var baseEnforcer = global.Symbol();
 
 function modelExists(registeredModels, name) {
@@ -68,75 +67,19 @@ SchemaError.prototype.constructor = SchemaError;
 RepositoryError.prototype.constructor = RepositoryError;
 QueryError.prototype.constructor = QueryError;
 
-function model(childModel) {
+function model(childModel, context) {
     var internalModel = {};
 
     if (childModel !== undefined) {
         internalModel = childModel;
     }
 
-    var r = null;
-
-    internalModel.init = function(context, mEnforcer) {
-
-        // Make Initialisation of model to be managed internally through the Repository.Init Method
-        if (mEnforcer !== modelEnforcer) {
-            return bluebird.reject(new RepositoryError("Models cannot be initialised externally, please initialise your models by using repo.init()"));
-        }
-
-        r = context;
-
-        return r.tableList().run().then(function(result) {
-            var schema = internalModel.schema;
-            var hasPrimary = false;
-            var options = {};
-            var p;
-
-            _(schema).keys().each(function(prop) {
-                // If schema contains an object that is not a valid Joi object, throw an error
-                if (!schema[prop].isJoi) {
-                    p = bluebird.reject(new SchemaError("'" + prop + "' has no validation"));
-                } else {
-                    _(schema[prop].describe().meta).each(function(meta) {
-                        // Look for primary key
-                        if (meta.isPrimary) {
-                            // If more than one primary key is defined in the schema, throw an error
-                            if (hasPrimary) {
-                                p = bluebird.reject(new SchemaError("Primary key already exists"));
-                            } else {
-                                // Add primary key to options that are to be used when creating new table
-                                options.primaryKey = prop;
-                                hasPrimary = true;
-                            }
-                        }
-                    });
-                }
-            });
-
-            if (p !== undefined) {
-                return p;
-            }
-
-            // If primary key isn't defined, throw an error
-            if (!hasPrimary) {
-                return bluebird.reject(new SchemaError("Primary key is not defined"));
-            }
-
-            // If table for current model is not defined, create a new table
-            if (result.indexOf(internalModel.name) === -1) {
-                return r.tableCreate(internalModel.name, options).run().then(function() {
-                    console.log("Table '" + internalModel.Name + "' created successfully.");
-                });
-            }
-
-            return bluebird.resolve();
-        });
-    };
+    var r = context;
 
     internalModel.save = function() {
         // If schema isn't defined, throw an error
         if (internalModel.schema === undefined) {
-            return bluebird.reject(new SchemaError("No schema defined for " + tableName));
+            return bluebird.reject(new SchemaError("No schema defined for " + internalModel));
         }
         else {
             var primaryKey;
@@ -284,7 +227,7 @@ var repository = function(dbName, host, port) {
                 throw new RepositoryError("The name is invalid, the name can only contain alphabetic characters");
             }
 
-            var modelToRegister = model(newModel, modelEnforcer);
+            var modelToRegister = model(newModel, r);
             modelToRegister.name = name;
 
             // If the selected model is already registered, throw an error
@@ -314,7 +257,51 @@ var repository = function(dbName, host, port) {
 
                     // Initialise each model registered to the repo
                     return bluebird.map(models, function(registeredModel) {
-                        return registeredModel.init(r, modelEnforcer);
+                        return r.tableList().run().then(function(result) {
+                            var schema = registeredModel.schema;
+                            var hasPrimary = false;
+                            var options = {};
+                            var p;
+
+                            _(schema).keys().each(function(prop) {
+                                // If schema contains an object that is not a valid Joi object, throw an error
+                                if (!schema[prop].isJoi) {
+                                    p = bluebird.reject(new SchemaError("'" + prop + "' has no validation"));
+                                } else {
+                                    _(schema[prop].describe().meta).each(function(meta) {
+                                        // Look for primary key
+                                        if (meta.isPrimary) {
+                                            // If more than one primary key is defined in the schema, throw an error
+                                            if (hasPrimary) {
+                                                p = bluebird.reject(new SchemaError("Primary key already exists"));
+                                            } else {
+                                                // Add primary key to options that are to be used when creating new table
+                                                options.primaryKey = prop;
+                                                hasPrimary = true;
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+
+                            if (p !== undefined) {
+                                return p;
+                            }
+
+                            // If primary key isn't defined, throw an error
+                            if (!hasPrimary) {
+                                return bluebird.reject(new SchemaError("Primary key is not defined"));
+                            }
+
+                            // If table for current model is not defined, create a new table
+                            if (result.indexOf(registeredModel.name) === -1) {
+                                return r.tableCreate(registeredModel.name, options).run().then(function() {
+                                    console.log("Table '" + registeredModel.name + "' created successfully.");
+                                });
+                            }
+
+                            return bluebird.resolve();
+                        });
                     });
                 }).then(function() {
                     isInitialised = true;

@@ -83,7 +83,6 @@ describe("Model Creation", function() {
         repo.register("test", obj);
         var model = repo.newModel("test");
         expect(typeof model.schema).to.equal("object");
-        expect(typeof model.init).to.equal("function");
         expect(typeof model.save).to.equal("function");
     });
 
@@ -151,18 +150,6 @@ describe("Initialisation", function() {
 
         repo.register("test", obj);
         return expect(repo.init()).to.eventually.be.rejectedWith(err);
-    });
-
-    it("should error when model is initialised externally", function() {
-        var err = "Models cannot be initialised externally, please initialise your models by using repo.init()";
-
-        var obj = {
-            schema: {}
-        };
-
-        repo.register("test", obj);
-        var model = repo.newModel("test");
-        expect(model.init()).to.eventually.be.rejectedWith(err);
     });
 
     // it("should error when there is more than one property with the same name", function() {
