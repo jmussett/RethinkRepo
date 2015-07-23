@@ -68,13 +68,11 @@ RepositoryError.prototype.constructor = RepositoryError;
 QueryError.prototype.constructor = QueryError;
 
 function model(childModel, context) {
-    var internalModel = {};
+    var internalModel = {}, r = context
 
     if (childModel !== undefined) {
         internalModel = childModel;
     }
-
-    var r = context;
 
     internalModel.save = function() {
         // If schema isn't defined, throw an error
@@ -82,15 +80,12 @@ function model(childModel, context) {
             return bluebird.reject(new SchemaError("No schema defined for " + internalModel));
         }
         else {
-            var primaryKey;
-            var hasPrimary = false;
-            var objectToSave = {};
-            var schemaToValidate = {};
-            var schema = internalModel.schema;
+            var primaryKey, hasPrimary = false, objectToSave = {}, 
+            schemaToValidate = {}, schema = internalModel.schema;
 
             _(schema).keys().each(function(prop) {
-                var validatiion = schema[prop];
-                var value = internalModel[prop];
+                var validatiion = schema[prop],
+                value = internalModel[prop];
 
                 // If schema contains an object that is not a valid Joi object, throw an error
                 if (!validatiion.isJoi) {
@@ -152,8 +147,7 @@ function model(childModel, context) {
 }
 
 var query = function(queryContext, existingModel) {
-    var context = queryContext;
-    var currentModel = existingModel;
+    var context = queryContext, currentModel = existingModel;
 
     return {
         get: function(identifier) {
@@ -185,14 +179,10 @@ var repository = function(dbName, host, port) {
         dbName: dbName,
         host: host,
         port: port
-    };
-
-    var models = [];
-
-    var isInitialised = false;
+    }, models = [], isInitialised = false,
 
     // Context used to query the database (private object via symbol enforcer)
-    var r = rethinkDb({
+    r = rethinkDb({
         servers: [{ host: host, port: port }],
         db: dbName
     });
@@ -245,7 +235,7 @@ var repository = function(dbName, host, port) {
                 .then(function(result) {
                     // Check if defined database exists
                     if (result.indexOf(config.dbName) === -1) {
-                        // If it doesn't, create said database
+                        // If it doesn't, create database
                         return r.dbCreate(config.dbName).run().then(function() {
                             console.log("Db '" + config.dbName + "' created successfully.");
                         });
@@ -258,10 +248,7 @@ var repository = function(dbName, host, port) {
                     // Initialise each model registered to the repo
                     return bluebird.map(models, function(registeredModel) {
                         return r.tableList().run().then(function(result) {
-                            var schema = registeredModel.schema;
-                            var hasPrimary = false;
-                            var options = {};
-                            var p;
+                            var schema = registeredModel.schema, hasPrimary = false, options = {}, p;
 
                             _(schema).keys().each(function(prop) {
                                 // If schema contains an object that is not a valid Joi object, throw an error
@@ -269,13 +256,12 @@ var repository = function(dbName, host, port) {
                                     p = bluebird.reject(new SchemaError("'" + prop + "' has no validation"));
                                 } else {
                                     _(schema[prop].describe().meta).each(function(meta) {
-                                        // Look for primary key
                                         if (meta.isPrimary) {
                                             // If more than one primary key is defined in the schema, throw an error
                                             if (hasPrimary) {
                                                 p = bluebird.reject(new SchemaError("Primary key already exists"));
                                             } else {
-                                                // Add primary key to options that are to be used when creating new table
+                                                // Declare as primary and add to options for table creation
                                                 options.primaryKey = prop;
                                                 hasPrimary = true;
                                             }
@@ -322,7 +308,6 @@ var repository = function(dbName, host, port) {
                 return m.name === name;
             });
 
-            // If the selected model has been registered, return a new instance of that model
             return modelToReturn;
         },
         // query: function(existingModel) {
@@ -342,17 +327,10 @@ var repository = function(dbName, host, port) {
                 return bluebird.reject(new RepositoryError("The Repository can only be destroyed after the Repository has been initialised"));
             }
 
-            return r.dbList().run().then(function(result) {
-                    // Check if defined database exists
-                    if(result.indexOf(config.dbName) !== -1) {
-                        // If it does, delete current database
-                        return r.dbDrop(config.dbName).run().then(function() {
-                            console.log("Db '" + config.dbName + "' destroyed successfully.");
-                        });
-                    }
-
-                    // Never expected to hit, implemented to prevent it from throwing an error in the case where the database has been deleted
-                    return bluebird.resolve();
+            // Database should always exist at this instance
+            // If it doesn't for an unexoected reason, let the error returned by rethinkdb bubble up
+            return r.dbDrop(config.dbName).run().then(function() {
+                console.log("Db '" + config.dbName + "' destroyed successfully.");
             });
         }
     };

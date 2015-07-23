@@ -116,6 +116,18 @@ describe("Initialisation", function() {
         return expect(repo.init()).to.eventually.be.fulfilled;
     });
 
+    //same as previous, required to cover all routes
+    it("should initialise existing model", function() {
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return expect(repo.init()).to.eventually.be.fulfilled;
+    });
+
     it("should error when primary key is missing", function() {
         var err = "Primary key is not defined";
         var obj = {
