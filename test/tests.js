@@ -70,36 +70,6 @@ describe("Registration", function() {
     });
 });
 
-describe("Model Creation", function() {
-    beforeEach(function() {
-        repo = rdb("Test", "localhost", 28015);
-    });
-
-    it("should create model", function() {
-        var obj = {
-            schema: {}
-        };
-
-        repo.register("test", obj);
-        var model = repo.newModel("test");
-        expect(typeof model.schema).to.equal("object");
-        expect(typeof model.save).to.equal("function");
-    });
-
-    it("should error when model does not exist", function() {
-        var err = "Model 'test' has not been registered, please register this model using Repository.register()";
-
-        expect(function() { repo.newModel("test"); }).to.throw(err);
-    });
-
-    it("should error when model name is not a string", function() {
-        var err = "Model name must be a string";
-
-        expect(function() { repo.newModel(5); }).to.throw(err);
-        expect(function() { repo.newModel({}); }).to.throw(err);
-    });
-});
-
 describe("Initialisation", function() {
     beforeEach(function(){
         repo = rdb("Test", "localhost", 28015);
@@ -177,6 +147,57 @@ describe("Initialisation", function() {
     //     repo.Register(obj);
     //     return expect(repo.Init()).to.eventually.be.rejectedWith(err);
     // });
+});
+
+describe("Model Creation", function() {
+    beforeEach(function() {
+        repo = rdb("Test", "localhost", 28015);
+    });
+
+    it("should create model", function() {
+        var obj = {
+            schema: {}
+        };
+
+        repo.register("test", obj);
+        var model = repo.newModel("test");
+        expect(typeof model.schema).to.equal("object");
+        expect(typeof model.save).to.equal("function");
+    });
+
+    it("should error when model does not exist", function() {
+        var err = "Model 'test' has not been registered, please register this model using Repository.register()";
+
+        expect(function() { repo.newModel("test"); }).to.throw(err);
+    });
+
+    it("should error when model name is not a string", function() {
+        var err = "Model name must be a string";
+
+        expect(function() { repo.newModel(5); }).to.throw(err);
+        expect(function() { repo.newModel({}); }).to.throw(err);
+    });
+});
+
+describe("Saving", function() {
+    beforeEach(function(){
+        repo = rdb("Test", "localhost", 28015);
+    });
+
+    it("should save model", function() {
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+            return expect(m.save()).to.eventually.be.fulfilled;
+        });
+    });
 });
 
 describe("Destruction", function() {

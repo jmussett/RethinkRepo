@@ -38,9 +38,8 @@ function ExtendableError(message) {
     this.name = this.constructor.name;
 }
 
-function ValidationError(err) {
-    ExtendableError.call(this, err);
-    this.message = err.message;
+function ValidationError(message) {
+    ExtendableError.call(this, message);
 }
 
 function SchemaError(message) {
@@ -68,7 +67,7 @@ RepositoryError.prototype.constructor = RepositoryError;
 QueryError.prototype.constructor = QueryError;
 
 function model(childModel, context) {
-    var internalModel = {}, r = context
+    var internalModel = {}, r = context;
 
     if (childModel !== undefined) {
         internalModel = childModel;
@@ -76,12 +75,12 @@ function model(childModel, context) {
 
     internalModel.save = function() {
         // If schema isn't defined, throw an error
-        if (internalModel.schema === undefined) {
-            return bluebird.reject(new SchemaError("No schema defined for " + internalModel));
+        if (typeof internalModel.schema !== "object") {
+            return bluebird.reject(new SchemaError("Schema for " + internalModel.name + " must be an object"));
         }
         else {
-            var primaryKey, hasPrimary = false, objectToSave = {}, 
-            schemaToValidate = {}, schema = internalModel.schema;
+            var primaryKey, hasPrimary = false, objectToSave = {},
+            schemaToValidate = {}, schema = internalModel.schema, p = null;
 
             _(schema).keys().each(function(prop) {
                 var validatiion = schema[prop],
@@ -89,7 +88,7 @@ function model(childModel, context) {
 
                 // If schema contains an object that is not a valid Joi object, throw an error
                 if (!validatiion.isJoi) {
-                    return bluebird.reject(new SchemaError("'" + prop + "' has no validation"));
+                    p = bluebird.reject(new SchemaError("'" + prop + "' has no validation"));
                 }
 
                 schemaToValidate[prop] = validatiion;
@@ -100,22 +99,24 @@ function model(childModel, context) {
                     if (meta.isPrimary) {
                         // If the current property is undefined, throw an error
                         if (value === undefined) {
-                            return bluebird.reject(new ValidationError("Property '" + prop + "' is required"));
+                            p = bluebird.reject(new ValidationError("Property '" + prop + "' is required"));
                         }
 
                         // If more than one primary key is defined in the schema, throw an error
                         if (hasPrimary) {
-                            return bluebird.reject(new SchemaError("Primary key already exists"));
+                            p = bluebird.reject(new SchemaError("Primary key already exists"));
                         }
 
                         // Set the primary key to be the current property
                         primaryKey = value;
                         hasPrimary = true;
-                        return false;
                     }
                 });
             });
 
+            if (p != null) {
+                return p;
+            }
             // If primary key isn't defined, throw an error
             if (!hasPrimary) {
                 return bluebird.reject(new SchemaError("Primary key is not defined"));
