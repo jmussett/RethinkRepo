@@ -27,7 +27,8 @@
     "get-own-property-symbols": "^0.5.1",
     "joi": "^6.5.0",
     "lazy.js": "^0.4.0",
-    "rethinkdbdash": "^2.0.16"
+    "rethinkdbdash": "^2.0.16",
+    "winston": "^1.0.1"
   },
   "devDependencies": {
     "chai": "^3.0.0",

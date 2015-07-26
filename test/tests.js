@@ -1,21 +1,32 @@
 "use strict";
 
-var rdb = require("../index.js");
-var repo = rdb("Test", "localhost", 28015);
-var chai = require("chai");
-var chaiAsPromised = require("chai-as-promised");
-var expect = chai.expect;
-var joi = repo.validation;
+var rdb = require("../index.js"),
+chai = require("chai"),
+winston = require("winston"),
+chaiAsPromised = require("chai-as-promised");
+
+var expect = chai.expect, joi, repo;
 
 chai.use(chaiAsPromised);
 
+function before() {
+    var logger = new (winston.Logger)({
+        transports: [
+            new (winston.transports.Console)({ silent: true })
+        ]
+    });
+
+    repo = rdb("Test", "localhost", 28015, logger);
+    joi = repo.validation;
+}
+
 describe("Registration", function() {
     beforeEach(function(){
-        repo = rdb("Test", "localhost", 28015);
+        before();
     });
 
     it("should error with unrecognised type", function() {
-        var err = "RepositoryError: Unrecognised type, use either an object with a name and a schema, or a Model inherited class function";
+        var err = "RepositoryError: Unrecognised type, use an object with a name and a schema";
         var obj = "not an object";
         expect(function() { repo.register("", obj); }).to.throw(err);
     });
@@ -72,6 +83,10 @@ describe("Registration", function() {
 
 describe("Initialisation", function() {
     beforeEach(function(){
+        before();
+    });
+
+    it("should initiate repo without logger", function() {
         repo = rdb("Test", "localhost", 28015);
     });
 
@@ -98,8 +113,21 @@ describe("Initialisation", function() {
         return expect(repo.init()).to.eventually.be.fulfilled;
     });
 
+    //same as previous, required to cover all routes
+    it("should initialise model with meta object in schema", function() {
+        var obj = {
+            schema: {
+                key: joi.primaryString(),
+                key2: joi.string().meta({ someMeta: "test" })
+            }
+        };
+
+        repo.register("test", obj);
+        return expect(repo.init()).to.eventually.be.fulfilled;
+    });
+
     it("should error when primary key is missing", function() {
-        var err = "Primary key is not defined";
+        var err = "Primary Key is not defined";
         var obj = {
             schema: {}
         };
@@ -109,7 +137,7 @@ describe("Initialisation", function() {
     });
 
     it("should error when there is more than one primary key", function() {
-        var err = "Primary key already exists";
+        var err = "Primary Key already exists";
         var obj = {
             schema: {
                 key1: joi.primaryString(),
@@ -151,7 +179,7 @@ describe("Initialisation", function() {
 
 describe("Model Creation", function() {
     beforeEach(function() {
-        repo = rdb("Test", "localhost", 28015);
+        before();
     });
 
     it("should create model", function() {
@@ -181,7 +209,7 @@ describe("Model Creation", function() {
 
 describe("Saving", function() {
     beforeEach(function(){
-        repo = rdb("Test", "localhost", 28015);
+        before();
     });
 
     it("should save model", function() {
@@ -229,8 +257,26 @@ describe("Saving", function() {
         });
     });
 
+    it("should save model when schema contains meta data", function() {
+        var obj = {
+            schema: {
+                key: joi.primaryString(),
+                key2: joi.string().meta({ someMeta: "test" })
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+            m.key2 = "test";
+
+            return expect(m.save()).to.eventually.be.fulfilled;
+        });
+    });
+
     it("should error when schema is not an object", function() {
-        var err = "Schema for test must be an object";
+        var err = "Schema for 'test' must be an object";
         var obj = {
             schema: {
                 key: joi.primaryString()
@@ -264,7 +310,7 @@ describe("Saving", function() {
     });
 
     it("should error when schema contains more than one primary key", function() {
-        var err = "Primary key already exists";
+        var err = "Primary Key already exists";
         var obj = {
             schema: {
                 key: joi.primaryString()
@@ -281,7 +327,7 @@ describe("Saving", function() {
     });
 
     it("should error when schema does not contain a primary key", function() {
-        var err = "Primary key is not defined";
+        var err = "Primary Key is not defined";
         var obj = {
             schema: {
                 key: joi.primaryString()
@@ -341,7 +387,7 @@ describe("Saving", function() {
 
 describe("Destruction", function() {
     beforeEach(function(){
-        repo = rdb("Test", "localhost", 28015);
+        before();
     });
 
     it("should error before repository is initialised", function() {
