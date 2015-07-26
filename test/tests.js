@@ -161,20 +161,6 @@ describe("Initialisation", function() {
         repo.register("test", obj);
         return expect(repo.init()).to.eventually.be.rejectedWith(err);
     });
-
-    // it("should error when there is more than one property with the same name", function() {
-    //     var err = "Schema cannot contain more than one property with the same name";
-    //     var obj = {
-    //         Name: "test",
-    //         Schema: {
-    //             key: Joi.primaryString(),
-    //             key: Joi.string()
-    //         }
-    //     };
-
-    //     repo.Register(obj);
-    //     return expect(repo.Init()).to.eventually.be.rejectedWith(err);
-    // });
 });
 
 describe("Model Creation", function() {

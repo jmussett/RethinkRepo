@@ -1,6 +1,6 @@
 {
   "name": "rethinkrepo",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Repository ORM for Rethink DB",
   "main": "index.js",
   "scripts": {
@@ -24,7 +24,6 @@
   "homepage": "https://github.com/jmussett/RethinkRepo",
   "dependencies": {
     "bluebird": "^2.9.33",
-    "get-own-property-symbols": "^0.5.1",
     "joi": "^6.5.0",
     "lazy.js": "^0.4.0",
     "rethinkdbdash": "^2.0.16",
