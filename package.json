@@ -4,7 +4,7 @@
   "description": "Repository ORM for Rethink DB",
   "main": "index.js",
   "scripts": {
-    "test": "./node_modules/.bin/istanbul test ./node_modules/.bin/_mocha --coverage -- -R spec",
+    "test": "./node_modules/.bin/istanbul test ./node_modules/.bin/_mocha -- -R spec",
     "debug": "mocha --debug-brk"
   },
   "repository": {

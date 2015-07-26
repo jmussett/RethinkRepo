@@ -1,34 +1,15 @@
 "use strict";
 
-require("get-own-property-symbols");
-
 var _ = require("lazy.js");
 var bluebird = require("bluebird");
 var joi = require("joi");
 var rethinkDb = require("rethinkdbdash");
-
-var baseEnforcer = global.Symbol();
 
 function modelExists(registeredModels, name) {
     // Check if defined model has already been registered with the repo
     return !_(registeredModels).every(function(registeredModel) {
         return name !== registeredModel.name;
     });
-}
-
-function validation() {
-
-    var intenalVal = joi;
-
-    intenalVal.primaryString = function() {
-        return joi.string().required().meta({ isPrimary: true });
-    };
-
-    intenalVal.primaryNumber = function() {
-        return joi.number().required().meta({ isPrimary: true });
-    };
-
-    return intenalVal;
 }
 
 function ExtendableError(message) {
@@ -50,28 +31,24 @@ function RepositoryError(message) {
     ExtendableError.call(this, message);
 }
 
-function QueryError(message) {
-    ExtendableError.call(this, message);
-}
+// function QueryError(message) {
+//     ExtendableError.call(this, message);
+// }
 
 ExtendableError.prototype = Object.create(Error.prototype);
 ValidationError.prototype = Object.create(ExtendableError.prototype);
 SchemaError.prototype = Object.create(ExtendableError.prototype);
 RepositoryError.prototype = Object.create(ExtendableError.prototype);
-QueryError.prototype = Object.create(ExtendableError.prototype);
+//QueryError.prototype = Object.create(ExtendableError.prototype);
 
 ExtendableError.prototype.constructor = ExtendableError;
 ValidationError.prototype.constructor = ValidationError;
 SchemaError.prototype.constructor = SchemaError;
 RepositoryError.prototype.constructor = RepositoryError;
-QueryError.prototype.constructor = QueryError;
+//QueryError.prototype.constructor = QueryError;
 
 function model(childModel, context) {
-    var internalModel = {}, r = context;
-
-    if (childModel !== undefined) {
-        internalModel = childModel;
-    }
+    var r = context, internalModel = childModel;
 
     internalModel.save = function() {
         // If schema isn't defined, throw an error
@@ -89,29 +66,23 @@ function model(childModel, context) {
                 // If schema contains an object that is not a valid Joi object, throw an error
                 if (!validatiion.isJoi) {
                     p = bluebird.reject(new SchemaError("'" + prop + "' has no validation"));
+                } else {
+                    schemaToValidate[prop] = validatiion;
+                    objectToSave[prop] = value;
+
+                    _(validatiion.describe().meta).each(function(meta) {
+                        if (meta.isPrimary) {
+                            if (hasPrimary) {
+                                p = bluebird.reject(new SchemaError("Primary key already exists"));
+                            } else if (value === undefined) {
+                                p = bluebird.reject(new ValidationError("Property '" + prop + "' is required"));
+                            }
+
+                            primaryKey = value;
+                            hasPrimary = true;
+                        }
+                    });
                 }
-
-                schemaToValidate[prop] = validatiion;
-                objectToSave[prop] = value;
-
-                _(validatiion.describe().meta).each(function(meta) {
-                    // Look for primary key
-                    if (meta.isPrimary) {
-                        // If the current property is undefined, throw an error
-                        if (value === undefined) {
-                            p = bluebird.reject(new ValidationError("Property '" + prop + "' is required"));
-                        }
-
-                        // If more than one primary key is defined in the schema, throw an error
-                        if (hasPrimary) {
-                            p = bluebird.reject(new SchemaError("Primary key already exists"));
-                        }
-
-                        // Set the primary key to be the current property
-                        primaryKey = value;
-                        hasPrimary = true;
-                    }
-                });
             });
 
             if (p != null) {
@@ -128,9 +99,13 @@ function model(childModel, context) {
             joi.validate(objectToSave, schemaObject, {abortEarly: false}, function(err) {
                 // If a model property fails to validate, throw an error
                 if (err) {
-                    return bluebird.reject(new ValidationError(err));
+                    p = bluebird.reject(new ValidationError(err.details));
                 }
             });
+
+            if (p != null) {
+                return p;
+            }
 
             return r.table(internalModel.name).get(primaryKey).run().then(function(result) {
                 if (result === null) {
@@ -147,32 +122,32 @@ function model(childModel, context) {
     return internalModel;
 }
 
-var query = function(queryContext, existingModel) {
-    var context = queryContext, currentModel = existingModel;
+// var query = function(queryContext, existingModel) {
+//     var context = queryContext, currentModel = existingModel;
 
-    return {
-        get: function(identifier) {
-            // The get function should only be called after the query was first initialised using Query(Model)
-            if (!this[baseEnforcer]) {
-                throw new QueryError("You can only use Get() when used at the base of the query");
-            }
+//     return {
+//         get: function(identifier) {
+//             // The get function should only be called after the query was first initialised using Query(Model)
+//             if (!this[baseEnforcer]) {
+//                 throw new QueryError("You can only use Get() when used at the base of the query");
+//             }
 
-            //var schema = currentModel.schema();
+//             //var schema = currentModel.schema();
 
-            // Todo: validate identifier
-            return query(context.get(identifier), currentModel);
-        },
-        run: function() {
-            // The run function should only be called after a sub-query function was first called (like Get())
-            if (this[baseEnforcer]) {
-                throw new QueryError("You cannot use Run() when used at the base of the query");
-            }
+//             // Todo: validate identifier
+//             return query(context.get(identifier), currentModel);
+//         },
+//         run: function() {
+//             // The run function should only be called after a sub-query function was first called (like Get())
+//             if (this[baseEnforcer]) {
+//                 throw new QueryError("You cannot use Run() when used at the base of the query");
+//             }
 
-            // Todo: return model instance by mapping and validating data
-            return context.run();
-        }
-    };
-};
+//             // Todo: return model instance by mapping and validating data
+//             return context.run();
+//         }
+//     };
+// };
 
 var repository = function(dbName, host, port) {
 
@@ -189,13 +164,26 @@ var repository = function(dbName, host, port) {
     });
 
     return {
-        validation: validation(),
         errors: {
             ValidationError: ValidationError,
             RepositoryError: RepositoryError,
-            SchemaError: SchemaError,
-            QueryError: QueryError
+            //QueryError: QueryError,
+            SchemaError: SchemaError
         },
+        validation: (function() {
+
+            var intenalVal = joi;
+
+            intenalVal.primaryString = function() {
+                return joi.string().required().meta({ isPrimary: true });
+            };
+
+            intenalVal.primaryNumber = function() {
+                return joi.number().required().meta({ isPrimary: true });
+            };
+
+            return intenalVal;
+        })(),
         register: function(name, newModel) {
             if(isInitialised) {
                 throw new RepositoryError("Models can only be registered before the Repository has been initialised");

@@ -195,7 +195,146 @@ describe("Saving", function() {
         return repo.init().then(function() {
             var m = repo.newModel("test");
             m.key = "test";
-            return expect(m.save()).to.eventually.be.fulfilled;
+
+            var p = m.save().then(function(result) {
+                expect(result.inserted).to.equal(1);
+            });
+
+            return expect(p).to.eventually.be.fulfilled;
+        });
+    });
+
+    it("should save model again after update", function() {
+        var obj = {
+            schema: {
+                key: joi.primaryString(),
+                key2: joi.string()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+            m.key2 = "test1";
+
+            var p = m.save().then(function() {
+                m.key2 = "test2";
+                return m.save().then(function(result) {
+                    expect(result.replaced).to.equal(1);
+                });
+            });
+
+            return expect(p).to.eventually.be.fulfilled;
+        });
+    });
+
+    it("should error when schema is not an object", function() {
+        var err = "Schema for test must be an object";
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+            m.schema = "not an object";
+            return expect(m.save()).to.eventually.be.rejectedWith(err);
+        });
+    });
+
+    it("should error when schema property has no validation", function() {
+        var err = "'key' has no validation";
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+            m.schema.key = "not validation";
+            return expect(m.save()).to.eventually.be.rejectedWith(err);
+        });
+    });
+
+    it("should error when schema contains more than one primary key", function() {
+        var err = "Primary key already exists";
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+            m.schema.key2 = joi.primaryString();
+            return expect(m.save()).to.eventually.be.rejectedWith(err);
+        });
+    });
+
+    it("should error when schema does not contain a primary key", function() {
+        var err = "Primary key is not defined";
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+            m.schema.key = joi.string();
+            return expect(m.save()).to.eventually.be.rejectedWith(err);
+        });
+    });
+
+    it("should error when primary key is not defined", function() {
+        var err = "Property 'key' is required";
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            return expect(m.save()).to.eventually.be.rejectedWith(err);
+        });
+    });
+
+    it("should error when schema validation fails", function() {
+        var err = [{
+            "message": "\"key2\" must be a number",
+            "path": "key2",
+            "type": "number.base",
+            "context": {
+                "key": "key2"
+            }
+        }];
+
+        var obj = {
+            schema: {
+                key: joi.primaryString(),
+                key2: joi.number()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+            m.key2 = "not a number";
+            return expect(m.save()).to.eventually.be.rejectedWith(err);
         });
     });
 });
