@@ -161,20 +161,6 @@ describe("Initialisation", function() {
         repo.register("test", obj);
         return expect(repo.init()).to.eventually.be.rejectedWith(err);
     });
-
-    // it("should error when there is more than one property with the same name", function() {
-    //     var err = "Schema cannot contain more than one property with the same name";
-    //     var obj = {
-    //         Name: "test",
-    //         Schema: {
-    //             key: Joi.primaryString(),
-    //             key: Joi.string()
-    //         }
-    //     };
-
-    //     repo.Register(obj);
-    //     return expect(repo.Init()).to.eventually.be.rejectedWith(err);
-    // });
 });
 
 describe("Model Creation", function() {
@@ -381,6 +367,57 @@ describe("Saving", function() {
             m.key = "test";
             m.key2 = "not a number";
             return expect(m.save()).to.eventually.be.rejectedWith(err);
+        });
+    });
+});
+
+describe("Querying", function() {
+    beforeEach(function() {
+        before();
+    });
+
+    it("should get single model", function() {
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+
+            var p = m.save().then(function() {
+                repo.query("test").get("test").then(function(result) {
+                    expect(result.key).to.equal("test");
+                    expect(typeof result.save).to.equal("function");
+                });
+            });
+
+            return expect(p).to.eventually.be.fulfilled;
+        });
+    });
+
+    it("should get single object", function() {
+        var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        return repo.init().then(function() {
+            var m = repo.newModel("test");
+            m.key = "test";
+
+            var p = m.save().then(function() {
+                repo.query("test").getObject("test").then(function(result) {
+                    expect(result.key).to.equal("test");
+                });
+            });
+
+            return expect(p).to.eventually.be.fulfilled;
         });
     });
 });

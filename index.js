@@ -8,6 +8,7 @@ module.exports = function(dbName, host, port, logger) {
         register: repo.register,
         init: repo.init,
         newModel: repo.newModel,
-        destroy: repo.destroy
+        destroy: repo.destroy,
+        query: repo.query
     };
 };
