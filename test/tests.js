@@ -101,7 +101,7 @@ describe("Initialisation", function() {
         return expect(repo.init()).to.eventually.be.fulfilled;
     });
 
-    //same as previous, required to cover all routes
+    //required to cover all routes
     it("should initialise existing model", function() {
         var obj = {
             schema: {
@@ -113,7 +113,7 @@ describe("Initialisation", function() {
         return expect(repo.init()).to.eventually.be.fulfilled;
     });
 
-    //same as previous, required to cover all routes
+    //required to cover all routes
     it("should initialise model with meta object in schema", function() {
         var obj = {
             schema: {
@@ -170,26 +170,50 @@ describe("Model Creation", function() {
 
     it("should create model", function() {
         var obj = {
+            schema: {
+                key: joi.primaryString()
+            }
+        };
+
+        repo.register("test", obj);
+        var p = repo.init().then(function() {
+            var model = repo.newModel("test");
+            expect(typeof model.schema).to.equal("object");
+            expect(typeof model.save).to.equal("function");
+        });
+
+        return expect(p).to.eventually.be.fulfilled;
+    });
+
+    it("should error when repo is not initialised", function() {
+        var err = "Models can only be created after the Repository has been initialised";
+        var obj = {
             schema: {}
         };
 
         repo.register("test", obj);
-        var model = repo.newModel("test");
-        expect(typeof model.schema).to.equal("object");
-        expect(typeof model.save).to.equal("function");
+        expect(function() { repo.newModel("test"); }).to.throw(err);
     });
 
     it("should error when model does not exist", function() {
         var err = "Model 'test' has not been registered, please register this model using Repository.register()";
 
-        expect(function() { repo.newModel("test"); }).to.throw(err);
+        var p = repo.init().then(function() {
+            expect(function() { repo.newModel("test"); }).to.throw(err);
+        });
+
+        return expect(p).to.eventually.be.fulfilled;
     });
 
     it("should error when model name is not a string", function() {
         var err = "Model name must be a string";
 
-        expect(function() { repo.newModel(5); }).to.throw(err);
-        expect(function() { repo.newModel({}); }).to.throw(err);
+        var p = repo.init().then(function() {
+            expect(function() { repo.newModel(5); }).to.throw(err);
+            expect(function() { repo.newModel({}); }).to.throw(err);
+        });
+
+        return expect(p).to.eventually.be.fulfilled;
     });
 });
 
@@ -389,10 +413,12 @@ describe("Querying", function() {
             m.key = "test";
 
             var p = m.save().then(function() {
-                repo.query("test").get("test").then(function(result) {
+                repo.query("test").get("test").run().then(function(result) {
                     expect(result.key).to.equal("test");
                     expect(typeof result.save).to.equal("function");
                 });
+            }).catch(function(err) {
+                console.log(err);
             });
 
             return expect(p).to.eventually.be.fulfilled;
@@ -412,7 +438,7 @@ describe("Querying", function() {
             m.key = "test";
 
             var p = m.save().then(function() {
-                repo.query("test").getObject("test").then(function(result) {
+                repo.query("test").getObject("test").run().then(function(result) {
                     expect(result.key).to.equal("test");
                 });
             });
